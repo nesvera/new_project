@@ -1,0 +1,39 @@
+RFID		Arduino			Cores			Ok
+5V		5V			Vermelho
+GND		GND			Preto
+TX		D10		Marrom
+
+
+Bluetooth	Arduino			Cores
+5V		5V			Vermelho
+GND		GND			Preto
+RX		TX			Amarelo
+STATE		D5
+
+ACEL/GYR/MAG	Arduino
+VCC		5v			Vermelho
+GND		GND			Preto
+SCL		A5			Branco
+SDA		A4			Azul
+
+
+Bateria		Arduino			Cores
+9V		VIN			Laranja
+Nivel		A0			Rosa
+
+Buzzer		Arduino			Cores
++		D9
+GND		GND			Preto
+
+
+
+Baudrate 57600
+
+Goodnight moon!
+31000062DE8D
+490057901E90
+
+$1;490057901E90;*
+
+Consumo do sistema
+Fontem preta antiga	9 volts 	0.14 amperes 
