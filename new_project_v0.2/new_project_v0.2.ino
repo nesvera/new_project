@@ -1,7 +1,7 @@
 #include <SoftwareSerial.h>
 
 //#define NOT_SOUND
-//#define DEBUG
+#define DEBUG
 
 // Cria um comunicação serial
 SoftwareSerial RFID(10, 11); // RX, TX
@@ -13,11 +13,13 @@ SoftwareSerial RFID(10, 11); // RX, TX
 #define RFID_END_CHECKSUM 5
 #define RFID_ID_SIZE 5                // 5 bytes
 #define RFID_RAW_MSG 10
+#define TIME_BTW_VALID_ID 2000        // delay entre leituras
 
-long int last_id_sent = 0;
+long int last_id_sent_time = 0;       // salva o tempo da ultima leitura valida
 uint8_t id_rfid[RFID_ID_SIZE];        // Contem o ultimo dado valido na forma decimal
 uint8_t id_rfid_ascii[10];            // Contem o ultimo dado recebido na forma ascii (original)
 uint8_t id_valido = 0;
+
 
 // Bluetooth
 #define BLUETOOTH_TX_PIN  1           // Ja é definido como saida
@@ -52,9 +54,10 @@ uint8_t mag_direcao = DIR_NE;                 // Utilizando a legenda (ex: norte
 #define BATERIA_MIN_TENSAO  420         // Tensão baixa 8.90 volts
 #define BATERIA_MAX_TENSAO  480
 #define BATERIA_EMPTY       2           // Nivel da bateria vai de 0 até 100... nivel critico
-#define BATTERY_OK_NIVEL    20          // 
+#define BATTERY_OK_NIVEL    10          // 
 
-#define TIME_AVISO_BATERIA  5000
+//#define TIME_AVISO_BATERIA  300000
+#define TIME_AVISO_BATERIA  120000
 
 /*------------------------- Funções -------------------------------------------------------------------*/
 
@@ -99,7 +102,15 @@ int readTag() {
 
         // Dado recebido nao contem erro para checksum==0
         if ( checksum == 0 ) {
-          id_valido = 1;
+
+          if( millis() - last_id_sent_time > TIME_BTW_VALID_ID ){
+            id_valido = 1;
+
+            last_id_sent_time = millis();
+          }
+          
+        
+          
         }
 
         return 0;
@@ -186,7 +197,7 @@ void bluetoothWriteRfidMsg() {
 }
 
 /*  Envia para o celular a mensagem bruta lida do RFID e a direção do usuario
-    EX: $1,31000062DE8D;1;
+    EX: $1,31000062DE8D;1;*
     1 = ID da mensagem
     31000062DE8D = 14 dados ascii lidos do rfid
     1 = sul
@@ -212,14 +223,19 @@ void bluetoothWriteIdAndDir() {
   Bluetooth.print("\n");
 }
 
+/*
+ * $3;-355;-355;*  ($pacote,bateria,bateria;*)
+ */
 void bluetoothWriteBateria(int nivel) {
   String str1, str2, data_package;
 
   str1 = String("$3;");
   str2 = str1 + nivel;
+  str2 = str2 + ";";
+  str2 = str2 + nivel;
   data_package = str2 + ";*";
 
-  Bluetooth.println(data_package);
+  Bluetooth.print(data_package);
 
   // Bluetooth utiliza '\n' com fim de msg
   Bluetooth.print("\n");
@@ -268,9 +284,9 @@ void avisoBateriaFraca() {
 void avisoDesligar() {
 #ifndef NOT_SOUND
   tone(BUZZER_PIN, 261.63, 80);
-  delay(200);
+  delay(300);
   tone(BUZZER_PIN, 261.63, 200);
-  delay(200);
+  delay(300);
   noTone(BUZZER_PIN);
 #endif
 }
@@ -287,12 +303,21 @@ void avisoDespareado() {
 
 void avisoBateriaVazia() {
 #ifndef NOT_SOUND
+  tone(BUZZER_PIN, 261.63, 80);
+  delay(100);
+  tone(BUZZER_PIN, 261.63, 200);
+  delay(100);
+#endif
+
+/*
+#ifndef NOT_SOUND
   tone(BUZZER_PIN, 1500, 150);  // B6
   delay(100);
   tone(BUZZER_PIN, 1400, 150);   // G5
   delay(150);
   noTone(BUZZER_PIN);
 #endif
+*/
 }
 
 int esperaConexao() {
@@ -324,7 +349,7 @@ void setup() {
   pinMode(BATERIA_PIN, INPUT);
 
   // Inicializa comunicação UART
-  Serial.begin(57600);
+  Serial.begin(9600);
   RFID.begin(9600);
 
   // Emite som pra informar que ligou
@@ -332,7 +357,7 @@ void setup() {
   delay(1000);
 
   //Espera o celular se conectar ao bluetooth
-  esperaConexao();
+  //esperaConexao();
   
 }
 
@@ -354,7 +379,8 @@ void loop() {
       // Avisa o usuário que o sistema esta com a bateria vazia
       if (bateria_nivel < 0 ) {
         avisoBateriaVazia();
-        delay(2000);
+        bluetoothWriteBateria( bateria_nivel );
+        delay(5000);
         continue;
 
         // Avisa o usuário que esta acabando
@@ -374,7 +400,6 @@ void loop() {
     // Confere se o celular esta conectado
     //if( digitalRead(BLUETOOTH_STATE_PIN) == 1 ){
     if (1) {
-
       // Le do leitor RFID
       if ( readTag() == -1 ) {
         //Serial.println("Sem leitura");
